@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/umohsamuel/authentication-authorization/internal/adapters/database/sqlc"
 	"github.com/umohsamuel/authentication-authorization/pkg/env"
 	"github.com/umohsamuel/authentication-authorization/pkg/util"
@@ -60,19 +61,24 @@ func (h *Handler) SignUp(c *gin.Context) {
 		"message": "user created successfully",
 		"data":    user,
 	})
-
 }
-func (h *Handler) SignIn(c *gin.Context) {
-	var signUpReq SignUpRequest
 
-	if err := c.ShouldBindJSON(&signUpReq); err != nil {
+type SignInRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func (h *Handler) SignIn(c *gin.Context) {
+	var signInReq SignInRequest
+
+	if err := c.ShouldBindJSON(&signInReq); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "invalid request params",
 		})
 		return
 	}
 
-	user, err := h.queries.GetUser(c, signUpReq.Email)
+	user, err := h.queries.GetUser(c, signInReq.Email)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "user not found",
@@ -80,7 +86,7 @@ func (h *Handler) SignIn(c *gin.Context) {
 		return
 	}
 
-	if password_match := util.CheckPasswordHash(signUpReq.Password, user.PasswordHash); password_match != true {
+	if password_match := util.CheckPasswordHash(signInReq.Password, user.PasswordHash); password_match != true {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "invalid details",
 		})
@@ -95,9 +101,109 @@ func (h *Handler) SignIn(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	refreshToken, err := h.queries.CreateRefreshToken(c, sqlc.CreateRefreshTokenParams{
+		UserID:    user.ID,
+		Token:     uuid.New().String(),
+		ExpiresAt: time.Now().UTC().Add(7 * 24 * time.Hour),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to generate refresh token",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
 		"message": "login successful",
 		"data":    user,
-		"token":   token,
+		"jwt": gin.H{
+			"token":         token,
+			"refresh_token": refreshToken.Token,
+		},
 	})
+}
+
+type RefreshAccessTokenRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+func (h *Handler) RefreshAccessToken(c *gin.Context) {
+	var refreshAccessReq RefreshAccessTokenRequest
+
+	if err := c.ShouldBind(&refreshAccessReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid request params",
+		})
+		return
+	}
+
+	rt, err := h.queries.GetRefreshToken(c, refreshAccessReq.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "invalid refresh token",
+		})
+		return
+	}
+
+	if rt.Revoked {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "invalid refresh token",
+		})
+		return
+	}
+
+	if time.Now().UTC().After(rt.ExpiresAt) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "expired refresh token",
+		})
+		return
+	}
+
+	user, err := h.queries.GetUserByID(c, rt.UserID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "invalid refresh token",
+		})
+		return
+	}
+
+	accessToken, err := util.GenerateAccessToken(*user, []byte(h.environmentVariables.Authentication.JWT_SECRET), 30*time.Minute)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to generate access token",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "success",
+		"jwt": gin.H{
+			"token": accessToken,
+		},
+	})
+}
+
+type RevokeRefreshAccessTokenRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+func (h *Handler) RevokeRefreshAccessToken(c *gin.Context) {
+	var refreshAccessReq RefreshAccessTokenRequest
+
+	if err := c.ShouldBind(&refreshAccessReq); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid request params",
+		})
+		return
+	}
+
+	err := h.queries.RevokeRefreshToken(c, refreshAccessReq.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "failed to revoke refresh token",
+		})
+		return
+	}
+
+	c.JSON(http.StatusNoContent, gin.H{})
 }

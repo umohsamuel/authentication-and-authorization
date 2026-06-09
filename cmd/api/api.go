@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/umohsamuel/authentication-authorization/internal/adapters/database/sqlc"
 	"github.com/umohsamuel/authentication-authorization/internal/ports/http/handlers/user"
+	"github.com/umohsamuel/authentication-authorization/internal/ports/http/middleware"
 	"github.com/umohsamuel/authentication-authorization/pkg/env"
 )
 
@@ -46,7 +47,7 @@ func API(environmentVariables *env.EnvironmentVariables, queries *sqlc.Queries) 
 }
 
 func (s *Server) Health() {
-	s.Engine.GET("/health", func(ctx *gin.Context) {
+	s.Engine.GET("/health", middleware.AuthMiddleware(*s.Env), func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{
 			"message": "Server Up!",
 		})
@@ -60,4 +61,8 @@ func (s *Server) User() {
 
 	rg.POST("/signup", userHandler.SignUp)
 	rg.POST("/signin", userHandler.SignIn)
+	rg.POST("/refresh", userHandler.RefreshAccessToken)
+
+	// admin in case of revoking access token
+	rg.POST("/revoke-refresh", userHandler.RevokeRefreshAccessToken)
 }
