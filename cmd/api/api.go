@@ -56,5 +56,8 @@ func (s *Server) Health() {
 func (s *Server) User() {
 	userHandler := user.NewUserHandler(*s.Env, *s.Queries)
 
-	s.Engine.POST("/user", userHandler.SignUp)
+	rg := s.Engine.Group("/user")
+
+	rg.POST("/signup", userHandler.SignUp)
+	rg.POST("/signin", userHandler.SignIn)
 }

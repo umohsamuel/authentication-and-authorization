@@ -19,7 +19,7 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-func GenerateAccessToken(user sqlc.User, jwtSecret string, accessTokenTTL time.Duration) (string, error) {
+func GenerateAccessToken(user sqlc.User, jwtSecret []byte, accessTokenTTL time.Duration) (string, error) {
 	expirationTime := time.Now().UTC().Add(accessTokenTTL)
 
 	claims := jwt.MapClaims{
@@ -39,7 +39,7 @@ func GenerateAccessToken(user sqlc.User, jwtSecret string, accessTokenTTL time.D
 	return tokenString, nil
 }
 
-func ValidateToken(tokenString string, jwtSecret string) (jwt.MapClaims, error) {
+func ValidateToken(tokenString string, jwtSecret []byte) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid token")
