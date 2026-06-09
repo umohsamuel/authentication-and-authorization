@@ -1,0 +1,18 @@
+version: "2"
+cloud:
+  organization: "umohsamuel"
+  project: "authentication-authorization"
+sql:
+  - engine: "postgresql"
+    queries: "queries"
+    schema: "migrations"
+    gen:
+      go:
+        package: "sqlc"
+        out: "internal/adapters/database/sqlc"
+        # sql_package: "pgx/v5"
+        sql_package: "database/sql"
+        emit_json_tags: true
+        emit_result_struct_pointers: true
+    rules:
+      - sqlc/db-prepare
