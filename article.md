@@ -1,78 +1,86 @@
-Build a Secure Authentication System in Golang with JWT and Postgres
+# Build a Secure Authentication System in Golang with Gin, JWT, and Postgres
 
-While it is commonly used interchangeably, authentication and authorization represent fundamentally different functions.
+Securing user data is a very important part of building any application. At the core of this security are two foundational concepts: authentication and authorization.
 
-What is authentication and authorization?
+While these terms are often used interchangeably, they represent fundamentally different functions.
+
+## What are Authentication and Authorization?
 
 Simply put, authentication is the process of verifying who a user is, while authorization is the process of verifying what they have access to.
 
 Comparing these processes to a real-world example, when you go to write an external examination (say JAMB), a student presents their exam slip and ID card (authentication). Then once inside, they can only sit for the subjects they registered for and not any random exam they choose (authorization).
 
-This simple process is the foundation for web applications, it ensures that the users are who they claim to be and also ensures they can only access what they are allowed to access.
+This simple process is the foundation for web applications; it ensures that the users are who they claim to be and also ensures they can only access what they are allowed to access.
 
-In this article, we'd walk through how to build a secure authentication and authorization system in Golang, using JSON Web Tokens and Postgres SQL.
+While both are equally important, this article will focus specifically on the first step: how to build a secure authentication system in Golang using JSON Web Tokens and PostgreSQL.
 
-Prerequisites
+## Prerequisites
+
 What would you need to follow along?
 
-1. Golang installed on your laptop or computer
-2. Basic familiarity with SQL and Go
+1. Golang installed on your laptop or computer.
+2. Basic familiarity with SQL and Go.
 
-Understanding JWT and its role in our Authentication System
-A JSON Web Token (JWT) is a compact, self-contained way to transmit information between two parties as a JSON object securely. It's designed to ensure data integrity and authenticity without the need for server-side session management. It is secure because the token's data is digitally signed using a shared secret (HMAC) or public/private key pair (RSA)
+## Understanding JSON Web Tokens (JWT)
 
-JWTs are essential in authentication system because its statelessness eliminates the need for repeated database queries, thereby reducing server load and improving response times.
+A JSON Web Token (JWT) is a compact, self-contained way to transmit information between two parties as a JSON object securely. It's designed to ensure data integrity and authenticity without the need for server-side session management. It is secure because the token's data is digitally signed using a shared secret (HMAC) or public/private key pair (RSA).
 
-JWT Structure
-A JWT consists of three parts encoded in Base64URL format and seperated by dots:
+JWTs are essential in an authentication system because their statelessness eliminates the need for repeated database queries, thereby reducing server load and improving response times.
 
-```
+### JWT Structure
+
+A JWT consists of three parts encoded in Base64URL format and separated by dots:
+
+```text
 Header.Payload.Signature
 ```
 
 For example:
 
-```
-eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiZXhwIjoxNjgwMDAwMDAwfQ.8Gj_9bJjAqQ-5j3iCKMzVnlg-d1Kk-fXnOKC1Vt2fGc
+```text
+eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InVtb2hzZy5hbHRAZ2LTMzMzlhZDIzNzNjZSJ9.RVQk03jen6HzfHnjXkTiD612gMDrNtFsExWKElWElDg
 ```
 
-1. The header identifies the algorithem used for signing
-2. The payload contains claims about the user like ID, roles, and expiration time
-3. The signature verifies the token hasn't been tampered with
+1. The header identifies the algorithm used for signing.
+2. The payload contains claims about the user like ID, roles, and expiration time.
+3. The signature verifies the token hasn't been tampered with.
 
-The role JWT plays in our system
+### The Role of JWT in Our System
 
 When a user interacts with our system:
 
 1. When the user successfully authenticates, our Go service:
-   1. Validates the user credentials against Postgres data
-   2. Creates a JWT with the appropriate claims and expiration
-   3. Signs the token with a secret key
+   1. Validates the user credentials against PostgreSQL data.
+   2. Creates a JWT with the appropriate claims and expiration.
+   3. Signs the token with a secret key.
 2. The client:
-   1. Stores the JWT (mostly in localStorage or Cookie)
-   2. Includes the token in the Authorization header for subsequent requests
+   1. Stores the JWT (mostly in localStorage or Cookie).
+   2. Includes the token in the Authorization header for subsequent requests.
 3. Our middleware:
-   1. Extracts the JWT from the request header
-   2. Validates the signature using our secret key
-   3. Checks that the token hasn't expired
-   4. Extracts the user identity from the claims
-   5. Adds the user ID to the request context
-4. Since the token contians all the neccessary user information, our server can authenticate requests without making session state or additional database queries.
+   1. Extracts the JWT from the request header.
+   2. Validates the signature using our secret key.
+   3. Checks that the token hasn't expired.
+   4. Extracts the user identity from the claims.
+   5. Adds the user ID to the request context.
+4. Since the token contains all the necessary user information, our server can authenticate requests without maintaining session state or making additional database queries.
 
-The secrity of the JWT system depends on keeping the signing key secret and using short-lived access tokens. If a token is compromised, it's only valid for a limited time, reducing the risk of unauthorized access.
+The security of the JWT system depends on keeping the signing key secret and using short-lived access tokens. If a token is compromised, it's only valid for a limited time, reducing the risk of unauthorized access.
 
-Application Structure
-Lets initalize a new Go application and install the necessary dependencies
+## Project Setup and Database Migrations
 
-```
+Let's initialize a new Go application and install the necessary dependencies:
+
+```bash
 mkdir authentication-authorization
 cd authentication-authorization
 go mod init github.com/you/authentication-authorization
 ```
 
-Now lets install the essential packages:
+Now let's install the essential packages:
 
-```
+```bash
+go get github.com/gin-gonic/gin # HTTP web framework and router
+go get github.com/gin-contrib/cors # Cross-Origin Resource Sharing (CORS) middleware
 go get github.com/jackc/pgx/v5 # PostgreSQL driver
 go get github.com/jackc/pgx/v5/pgconn # PostgreSQL connection
 go get github.com/jackc/pgx/v5/pgxpool # Connection pooling
@@ -82,37 +90,39 @@ go get github.com/google/uuid # UUID generation
 go get github.com/joho/godotenv # Load environment variables
 ```
 
-Next lets install Goose for our database migrations:
+Next, let's install Goose for our database migrations:
 
-```
+```bash
 go install github.com/pressly/goose/v3/cmd/goose@latest
 ```
 
-Next lets make a migrations folder
+Next, let's make a migrations folder:
 
-```
+```bash
 mkdir migrations
 ```
 
-now lets create our very first migration for this project
+Now, let's create our very first migration for this project.
 
-create a .env and configure this with your postgres db credentials
+Create a `.env` file and configure it with your PostgreSQL database credentials (replace `GOOSE_DBSTRING` with your actual database connection url):
 
-```
-GOOSE_DRIVER=postgres
-GOOSE_DBSTRING=postgres://admin:admin@localhost:5432/admin_db
-GOOSE_MIGRATION_DIR=./migrations
-```
-
-open your terminal and run
-
-```
-goose -dir migrations create create_user_table_and_refresh_token_table sql
+```bash
+export GOOSE_DRIVER=postgres
+export GOOSE_DBSTRING=postgres://admin:admin@localhost:5432/admin_db
+export GOOSE_MIGRATION_DIR=./migrations
 ```
 
-Paste this in the migration file generated
+Open your terminal and run:
 
+```bash
+goose create create_user_and_refresh_token_table sql
 ```
+
+Paste this into the generated migration file:
+
+```sql
+-- migrations/..._create_user_and_refresh_token_table.sql
+
 -- +goose Up
 CREATE TABLE users (
  id uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -137,19 +147,137 @@ DROP TABLE IF EXISTS refresh_tokens;
 DROP INDEX IF EXISTS idx_refresh_tokens_token;
 ```
 
-now we can apply the migration in our terminal
+Now we can apply the migration in our terminal:
 
-```
+```bash
 goose up
 ```
 
-and if you check your postgres database, the appropriate tables and fields has been created
+And if you check your PostgreSQL database, the appropriate tables and fields have been created.
 
-Database Connection setup:
+## Loading Environment Variables
 
-Lets start with a connectionn to our Postgres Database:
+Our application requires configuration such as the Port, database URL and JWT secret. Let's create an `env` package to handle loading these variables using `godotenv`:
 
+```go
+// pkg/env/env.go
+package env
+
+import (
+	"log"
+	"os"
+	"strconv"
+   "regexp"
+
+	"github.com/joho/godotenv"
+	"github.com/umohsamuel/authentication-authorization/pkg/util"
+)
+
+type AuthenticationEV struct {
+	JWT_SECRET string
+}
+
+type DatabaseEV struct {
+	PG_PORT      int
+	DATABASE_URL string
+}
+
+type EnvironmentVariables struct {
+	Port                  string
+	ProductionEnvironment bool
+	ClientDomain          string
+	ProjectName           string
+	Authentication        AuthenticationEV
+	Database              DatabaseEV
+}
+
+func loadEnv() {
+	rootPath := GetRootPath()
+	err := godotenv.Load(rootPath + `/.env`)
+
+	if err != nil {
+		log.Println("Warning: .env file not found, using environment variables")
+	}
+}
+
+func LoadEnvironmentVariables() *EnvironmentVariables {
+	loadEnv()
+
+	return &EnvironmentVariables{
+		Port:                  getEnv("PORT", ":5000"),
+		ProductionEnvironment: getEnvAsBool("PRODUCTION_ENVIRONMENT", false),
+		ClientDomain:          getEnv("CLIENT_DOMAIN", "localhost"),
+		ProjectName:           getEnv("PROJECT_NAME", "eba"),
+		Authentication: AuthenticationEV{
+			JWT_SECRET: getEnvOrError("JWT_SECRET"),
+		},
+		Database: DatabaseEV{
+			PG_PORT:      getEnvAsInt("PG_PORT", 5433),
+			DATABASE_URL: getEnvOrError("DATABASE_URL"),
+		},
+	}
+}
+
+func getEnvOrError(key string) string {
+	value, exists := os.LookupEnv(key)
+	if exists {
+		return value
+	}
+	panic("Environment variable " + key + " not set")
+}
+
+func getEnv(key string, fallback string) string {
+	value, exists := os.LookupEnv(key)
+	if exists {
+		return value
+	}
+	return fallback
+}
+
+func getEnvAsInt(key string, fallback int) int {
+	value, exist := os.LookupEnv(key)
+	if exist {
+		valueInt, err := strconv.Atoi(value)
+		if err != nil {
+			log.Panicf("Environment variable \"%v\" not set properly", key)
+		}
+		return valueInt
+	}
+	return fallback
+}
+
+func getEnvAsBool(key string, fallback bool) bool {
+	value, exist := os.LookupEnv(key)
+	if exist {
+		valueBool, err := strconv.ParseBool(value)
+		if err != nil {
+			log.Panicf("Environment variable \"%v\" not set properly", key)
+		}
+		return valueBool
+	}
+	return fallback
+}
+
+func GetRootPath() string {
+	projectDirName := os.Getenv("PROJECT_DIR_NAME")
+	projectName := regexp.MustCompile(`^(.*` + projectDirName + `)`)
+	currentWorkDirectory, _ := os.Getwd()
+	return string(projectName.Find([]byte(currentWorkDirectory)))
+}
 ```
+
+Make sure to add the relevant environment variables to your `.env` file:
+
+```bash
+JWT_SECRET=your-super-secret-jwt-key
+DATABASE_URL=postgres://admin:admin@localhost:5432/admin_db
+```
+
+## Database Connection Setup
+
+Let's start with a connection to our PostgreSQL Database:
+
+```go
 // internal/adapters/database/connection.go
 package database
 
@@ -188,12 +316,15 @@ func NewPool() *sql.DB {
 }
 ```
 
-This simple function connects to our Postgres database, creates a connection pool and pings the database to verify the connection.
+This simple function connects to our PostgreSQL database, creates a connection pool, and pings the database to verify the connection.
 
-Password Handling
-Now we will create functions that will hash passwords safely during registration and verify them during login
+## Password Hashing
 
-```
+Now we will create functions that will hash passwords safely during registration and verify them during login:
+
+```go
+// pkg/util/password.go
+
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
@@ -205,17 +336,57 @@ func CheckPasswordHash(password, hash string) bool {
 }
 ```
 
-We use Bcrypt for the password hashing because
+We use Bcrypt for password hashing because:
 
-1. it is slow by design, making it not practical for brute-force attacks
-2. adaptive cause it has an adjustable cost factor. this makes computing the has deliberately computationally expensive, so we can increate security as hardware gets faster
-3. it automatically salts passwords. This guarantees that even if two users have the exact same password, their stored hashes will look completely different.
+1. It is slow by design, making it impractical for brute-force attacks.
+2. It is adaptive because it has an adjustable cost factor. This makes computing the hash deliberately computationally expensive, so we can increase security as hardware gets faster.
+3. It automatically salts passwords. This guarantees that even if two users have the exact same password, their stored hashes will look completely different.
 
-When a user signs up we'll hash their password before storing it. When they log in, we'll compare their provided password against the stored hash.
+When a user signs up, we'll hash their password before storing it. When they log in, we'll compare their provided password against the stored hash.
 
-Now lets create a user model and Adapter to interat with
+## Database Models and Queries
 
+For our database interactions, we will use `sqlc`, a powerful tool that generates fully type-safe Go code directly from SQL queries.
+
+Normally, you would configure `sqlc` and run its CLI to generate these files for you. However, to keep this tutorial focused strictly on the authentication logic, we'll just create the necessary files manually.
+
+First, let's add the foundational `db.go` file that `sqlc` uses to define the `Queries` struct and the database execution interface:
+
+```go
+// internal/adapters/database/sqlc/db.go
+package sqlc
+
+import (
+	"context"
+	"database/sql"
+)
+
+type DBTX interface {
+	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
+	PrepareContext(context.Context, string) (*sql.Stmt, error)
+	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+}
+
+func New(db DBTX) *Queries {
+	return &Queries{db: db}
+}
+
+type Queries struct {
+	db DBTX
+}
+
+func (q *Queries) WithTx(tx *sql.Tx) *Queries {
+	return &Queries{
+		db: tx,
+	}
+}
 ```
+
+Now let's create a user model and adapter to interact with:
+
+```go
+// internal/adapters/database/sqlc/user.go
 package sqlc
 
 import (
@@ -326,12 +497,12 @@ func (q *Queries) GetUsers(ctx context.Context) ([]*User, error) {
 
 ```
 
-this adapter provides methods to interact with a user/users. we'd need them for our authentication logic. the user struct respresent the structure of the user data stored in the db
+This adapter provides methods to interact with a user/users. We'll need them for our authentication logic. The `User` struct represents the structure of the user data stored in the database.
 
-Lets create our authentication system
+## JWT Generation and Validation
 
-```
-// pkg/auth.go
+```go
+// pkg/util/auth.go
 
 func GenerateAccessToken(user sqlc.User, jwtSecret []byte, accessTokenTTL time.Duration) (string, error) {
 	expirationTime := time.Now().UTC().Add(accessTokenTTL)
@@ -380,9 +551,12 @@ Short-lived access tokens are more secure, but they require users to log in freq
 
 To improve user experience while maintaining security, we can implement a refresh token system. This essentially creates a two-tier authentication system, where a long-lived refresh token is used to obtain short-lived access tokens.
 
-The refresh token can be revoked if needed allowing for better control over user sessions.
+The refresh token can be revoked if needed, allowing for better control over user sessions.
 
-```
+### Refresh Token Management
+
+```go
+// internal/adapters/database/sqlc/refresh_token.go
 package sqlc
 
 import (
@@ -460,15 +634,18 @@ func (q *Queries) RevokeRefreshToken(ctx context.Context, token string) error {
 
 ```
 
-The main benefit of refresh tokens is that they:
+The main benefits of refresh tokens are that they:
 
-1. Allow access tokens to be short-lived (e.g., 15 minutes), which reduces the risk if they're leaked
-2. Enable longer sessions without requiring frequent logins
-3. Can be revoked server-side if needed, such as on logout or if a security breach is detected
+1. Allow access tokens to be short-lived (e.g., 15 minutes), which reduces the risk if they're leaked.
+2. Enable longer sessions without requiring frequent logins.
+3. Can be revoked server-side if needed, such as on logout or if a security breach is detected.
 
-Now lets create our user authentication handler
+## User Authentication Handlers
 
-```
+Now let's create our user authentication handler:
+
+```go
+// internal/ports/http/handlers/user/user.go
 
 package user
 
@@ -682,12 +859,14 @@ func (h *Handler) RevokeRefreshAccessToken(c *gin.Context) {
 
 ```
 
-this handler exposes endpoints for signin, signup, RefreshAccessToken and RevokeRefreshAccessToken
+This handler exposes endpoints for signin, signup, RefreshAccessToken, and RevokeRefreshAccessToken.
 
-Create Protected Routes
-Now lets test our authentication system and create a middleware to protect routes that require authentication
+## Protecting Routes with Middleware
 
-```
+Now let's test our authentication system and create a middleware to protect routes that require authentication:
+
+```go
+// internal/ports/http/middleware/auth.go
 package middleware
 
 import (
@@ -756,19 +935,21 @@ func AuthMiddleware(environmentVariables env.EnvironmentVariables) gin.HandlerFu
 
 ```
 
-the middleware extracts the JWT token from the Authorization header, validates it, and adds the user ID to the request context. This allows subsequent handlers to access the authenticated user's identity.
+The middleware extracts the JWT token from the Authorization header, validates it, and adds the user ID to the request context. This allows subsequent handlers to access the authenticated user's identity.
 
-Key things the auth middleware does
+### Key Things the Auth Middleware Does
 
-1. Extracting the JWT token from the Authorization header
-2. Validating the token signature and expiration
-3. Adding the authenticated user's ID to the request context
-4. Rejecting requests with invalid or missing tokens
+1. Extracting the JWT token from the Authorization header.
+2. Validating the token signature and expiration.
+3. Adding the authenticated user's ID to the request context.
+4. Rejecting requests with invalid or missing tokens.
 
-lets connect everything together in our api module
+### Connecting the API and Main Application
 
-```
-// /cmd/api/api.go
+Let's connect everything together in our API module:
+
+```go
+// cmd/api/api.go
 
 package api
 
@@ -841,10 +1022,10 @@ func (s *Server) User() {
 
 ```
 
-now lets connect everything to our main application
+Now let's connect everything to our main application:
 
-```
-// /cmd/main.go
+```go
+// cmd/main.go
 
 package main
 
@@ -870,91 +1051,91 @@ func main() {
 }
 ```
 
-Run the application
+## Run the Application
 
-we can run the application by
+We can run the application by running:
 
-```
+```bash
 go run cmd/main.go
 ```
 
-you should see among the output, first
+You should see among the output, first:
 
-```
+```text
 2026/06/11 16:14:11 database created & is reachable
 ```
 
-then lastly:
+Then lastly:
 
-```
+```text
 [GIN-debug] Listening and serving HTTP on :8080
 ```
 
-Testing with curl
+## Testing with cURL
 
-```
+```bash
 curl -X POST http://localhost:8080/user/signup \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
+    "email": "umohsg.alt@gmail.com",
     "password": "SecureP@ssw0rd!"
   }'
 ```
 
-we should get the response:
+We should get the response:
 
-```
+```json
 {
-    "data": {
-        "id": "019eb743-87a6-701b-861a-3339ad2373ce",
-        "email": "umohsg.alt@gmail.com",
-        "password_hash": "$2a$14$vE3/zq1/WzK3z.uSH4v.9ebvyJfPmAyBZNCLy1Pyr4.ezaX/Zq23q",
-        "created_at": {
-            "Time": "2026-06-11T16:18:36.709895+01:00",
-            "Valid": true
-        }
-    },
-    "message": "user created successfully"
+  "data": {
+    "id": "019eb743-87a6-701b-861a-3339ad2373ce",
+    "email": "umohsg.alt@gmail.com",
+    "password_hash": "$2a$14$vE3/zq1/WzK3z.uSH4v.9ebvyJfPmAyBZNCLy1Pyr4.ezaX/Zq23q",
+    "created_at": {
+      "Time": "2026-06-11T16:18:36.709895+01:00",
+      "Valid": true
+    }
+  },
+  "message": "user created successfully"
 }
 ```
 
-next, lets login with the newly created user
+Next, let's log in with the newly created user:
 
-```
+```bash
 curl -X POST http://localhost:8080/user/signin \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "user@example.com",
+    "email": "umohsg.alt@gmail.com",
     "password": "SecureP@ssw0rd!"
   }'
 ```
 
-we should get the response:
+We should get the response:
 
-```
+```json
 {
-    "data": {
-        "id": "019eb743-87a6-701b-861a-3339ad2373ce",
-        "email": "umohsg.alt@gmail.com",
-        "password_hash": "$2a$14$vE3/zq1/WzK3z.uSH4v.9ebvyJfPmAyBZNCLy1Pyr4.ezaX/Zq23q",
-        "created_at": {
-            "Time": "2026-06-11T16:18:36.709895+01:00",
-            "Valid": true
-        }
-    },
-    "jwt": {
-        "refresh_token": "1fe63ff8-30c8-4666-a53d-951401f71216",
-        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVtb2hzZy5hbHRAZ21haWwuY29tIiwiZXhwIjoxNzgxMTkzMDAzLCJpYXQiOjE3ODExOTEyMDMsInN1YiI6IjAxOWViNzQzLTg3YTYtNzAxYi04NjFhLTMzMzlhZDIzNzNjZSJ9.RVQk03jen6HzfHnjXkTiD612gMDrNtFsExWKElWElDg"
-    },
-    "message": "login successful"
+  "data": {
+    "id": "019eb743-87a6-701b-861a-3339ad2373ce",
+    "email": "umohsg.alt@gmail.com",
+    "password_hash": "$2a$14$vE3/zq1/WzK3z.uSH4v.9ebvyJfPmAyBZNCLy1Pyr4.ezaX/Zq23q",
+    "created_at": {
+      "Time": "2026-06-11T16:18:36.709895+01:00",
+      "Valid": true
+    }
+  },
+  "jwt": {
+    "refresh_token": "1fe63ff8-30c8-4666-a53d-951401f71216",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVtb2hzZy5hbHRAZ21haWwuY29tIiwiZXhwIjoxNzgxMTkzMDAzLCJpYXQiOjE3ODExOTEyMDMsInN1YiI6IjAxOWViNzQzLTg3YTYtNzAxYi04NjFhLTMzMzlhZDIzNzNjZSJ9.RVQk03jen6HzfHnjXkTiD612gMDrNtFsExWKElWElDg"
+  },
+  "message": "login successful"
 }
 ```
 
-Save the access_token and refresh_token from the response for the next steps.
+Save the `access_token` and `refresh_token` from the response for the next steps.
 
-now lets use the access token to access a protected route:
+Now let's use the access token to access a protected route:
 
-```
+```bash
 export ACCESS_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 
 curl -X GET http://localhost:8080/health \
@@ -962,17 +1143,17 @@ curl -X GET http://localhost:8080/health \
 
 ```
 
-you should get the response:
+You should get the response:
 
-```
+```json
 {
-    "message": "Server Up!"
+  "message": "Server Up!"
 }
 ```
 
 When your access token expires, refresh it using the refresh token you received during login:
 
-```
+```bash
 export REFRESH_TOKEN="c3d4e5f6-7890-...."
 
 curl -X POST http://localhost:8080/user/refresh \
@@ -982,27 +1163,27 @@ curl -X POST http://localhost:8080/user/refresh \
   }'
 ```
 
-you should get the response:
+You should get the response:
 
-```
+```json
 {
-    "jwt": {
-        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVtb2hzZy5hbHRAZ21haWwuY29tIiwiZXhwIjoxNzgxMTkzMjc0LCJpYXQiOjE3ODExOTE0NzQsInN1YiI6IjAxOWViNzQzLTg3YTYtNzAxYi04NjFhLTMzMzlhZDIzNzNjZSJ9.L6dGe2NbRof2Pjks-83xXZWeFPsqy3Dp06TO2FwNd5Y"
-    },
-    "message": "success"
+  "jwt": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVtb2hzZy5hbHRAZ21haWwuY29tIiwiZXhwIjoxNzgxMTkzMjc0LCJpYXQiOjE3ODExOTE0NzQsInN1YiI6IjAxOWViNzQzLTg3YTYtNzAxYi04NjFhLTMzMzlhZDIzNzNjZSJ9.L6dGe2NbRof2Pjks-83xXZWeFPsqy3Dp06TO2FwNd5Y"
+  },
+  "message": "success"
 }
 ```
 
 You can also test an invalid token to see the authentication fail:
 
-```
+```bash
 curl -X GET http://localhost:8080/api/profile \
   -H "Authorization: Bearer invalid-token"
 ```
 
-then lastly for whatever suspicious reason you can revoke a users refresh token
+Then lastly, for whatever suspicious reason, you can revoke a user's refresh token:
 
-```
+```bash
 export REFRESH_TOKEN="c3d4e5f6-7890-...."
 
 curl -X POST http://localhost:8080/user/revoke-refresh \
@@ -1012,8 +1193,10 @@ curl -X POST http://localhost:8080/user/revoke-refresh \
   }'
 ```
 
-and you should get a 204 response
+And you should get a `204 No Content` response.
 
-Conclusion
+## Conclusion
 
-in this article, we built a secureauthentication system in Go, using JWT and postgres. the system includes secure password hashing, token-based authenticatoin, refresh token support, middleware-protected routes, bycrypt hashing to prevent brute-force attacks amongst others. Security headers and best practices were used to protect us against common web vulnerabilities.
+In this article, we built a secure authentication system in Go, using JWT and PostgreSQL. The system includes secure password hashing, token-based authentication, refresh token support, middleware-protected routes, and bcrypt hashing to prevent brute-force attacks, amongst others. Security headers and best practices were used to protect us against common web vulnerabilities.
+
+You can checkout the source code on Github here: [umohsamuel/authentication-and-authorization](https://github.com/umohsamuel/authentication-and-authorization), play around with it and lmk what you think.
