@@ -1,0 +1,5 @@
+{
+  "augment.nextEdit.enableBackgroundSuggestions": false,
+  "github.copilot.chat.backgroundAgent.enabled": false,
+  "issueReporter.wizard.fullWorkspaceScan": false
+}
