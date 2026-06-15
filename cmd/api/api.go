@@ -38,26 +38,51 @@ func API(environmentVariables *env.EnvironmentVariables, queries *sqlc.Queries) 
 
 	s.Engine.Static("/downloads", "tmp")
 
-	s.Health()
-	s.User()
+	auth := s.Engine.Group("/auth")
+	s.Auth(auth)
+
+	v1 := s.Engine.Group("/api/v1")
+	{
+
+		protected := v1.Group("")
+		protected.Use(middleware.AuthMiddleware(*s.Env))
+		{
+			s.Health(protected)
+			s.OnlyMinLevelAdmin(protected)
+		}
+
+	}
 
 	s.Engine.Run()
 
 	return s
 }
 
-func (s *Server) Health() {
-	s.Engine.GET("/health", middleware.AuthMiddleware(*s.Env), func(ctx *gin.Context) {
+func (s *Server) Health(rg *gin.RouterGroup) {
+	rg.GET("/health", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{
 			"message": "Server Up!",
 		})
 	})
 }
 
-func (s *Server) User() {
-	userHandler := user.NewUserHandler(*s.Env, *s.Queries)
+func (s *Server) OnlyMinLevelAdmin(rg *gin.RouterGroup) {
+	g := rg.Group("/admin")
 
-	rg := s.Engine.Group("/user")
+	requiredRoles := []string{"super-admin", "admin"}
+
+	g.Use(middleware.RoleMiddleware(requiredRoles))
+
+	g.GET("/test", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"success": "you have successfully implemented RBAC",
+		})
+	})
+
+}
+
+func (s *Server) Auth(rg *gin.RouterGroup) {
+	userHandler := user.NewUserHandler(*s.Env, *s.Queries)
 
 	rg.POST("/signup", userHandler.SignUp)
 	rg.POST("/signin", userHandler.SignIn)

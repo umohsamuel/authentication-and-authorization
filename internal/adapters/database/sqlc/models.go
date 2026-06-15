@@ -11,6 +11,11 @@ import (
 	"github.com/google/uuid"
 )
 
+type Permission struct {
+	ID   int16  `json:"id"`
+	Name string `json:"name"`
+}
+
 type RefreshToken struct {
 	ID        uuid.UUID `json:"id"`
 	UserID    uuid.UUID `json:"user_id"`
@@ -20,9 +25,24 @@ type RefreshToken struct {
 	Revoked   bool      `json:"revoked"`
 }
 
+type Role struct {
+	ID   int16  `json:"id"`
+	Name string `json:"name"`
+}
+
+type RolePermission struct {
+	RoleID       int16 `json:"role_id"`
+	PermissionID int16 `json:"permission_id"`
+}
+
 type User struct {
 	ID           uuid.UUID    `json:"id"`
 	Email        string       `json:"email"`
 	PasswordHash string       `json:"password_hash"`
 	CreatedAt    sql.NullTime `json:"created_at"`
+}
+
+type UserRole struct {
+	UserID uuid.UUID `json:"user_id"`
+	RoleID int16     `json:"role_id"`
 }

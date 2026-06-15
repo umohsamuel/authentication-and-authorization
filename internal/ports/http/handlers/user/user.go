@@ -57,6 +57,18 @@ func (h *Handler) SignUp(c *gin.Context) {
 		return
 	}
 
+	err = h.queries.AssignRoleToEntity(c, sqlc.AssignRoleToEntityParams{
+		UserID: user.ID,
+		Name:   "user",
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "user created successfully",
 		"data":    user,
@@ -93,7 +105,13 @@ func (h *Handler) SignIn(c *gin.Context) {
 		return
 	}
 
-	token, err := util.GenerateAccessToken(*user, []byte(h.environmentVariables.Authentication.JWT_SECRET), 30*time.Minute)
+	roles, err := h.queries.GetEntityRoles(c, user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, "error")
+		return
+	}
+
+	token, err := util.GenerateAccessToken(*user, roles, []byte(h.environmentVariables.Authentication.JWT_SECRET), 30*time.Minute)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "failed to generate access token",
@@ -167,7 +185,13 @@ func (h *Handler) RefreshAccessToken(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := util.GenerateAccessToken(*user, []byte(h.environmentVariables.Authentication.JWT_SECRET), 30*time.Minute)
+	roles, err := h.queries.GetEntityRoles(c, user.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, "error")
+		return
+	}
+
+	accessToken, err := util.GenerateAccessToken(*user, roles, []byte(h.environmentVariables.Authentication.JWT_SECRET), 30*time.Minute)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "failed to generate access token",

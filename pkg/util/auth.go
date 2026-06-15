@@ -19,12 +19,13 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-func GenerateAccessToken(user sqlc.User, jwtSecret []byte, accessTokenTTL time.Duration) (string, error) {
+func GenerateAccessToken(user sqlc.User, roles []string, jwtSecret []byte, accessTokenTTL time.Duration) (string, error) {
 	expirationTime := time.Now().UTC().Add(accessTokenTTL)
 
 	claims := jwt.MapClaims{
 		"sub":   user.ID.String(),
 		"email": user.Email,
+		"roles": roles,
 		"exp":   expirationTime.Unix(),
 		"iat":   time.Now().UTC().Unix(),
 	}

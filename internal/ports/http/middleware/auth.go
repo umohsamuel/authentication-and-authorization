@@ -44,7 +44,7 @@ func AuthMiddleware(environmentVariables env.EnvironmentVariables) gin.HandlerFu
 		userIDStr, ok := claims["sub"].(string)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid token claims",
+				"error": "Invalid token",
 			})
 			c.Abort()
 			return
@@ -53,13 +53,64 @@ func AuthMiddleware(environmentVariables env.EnvironmentVariables) gin.HandlerFu
 		userID, err := uuid.Parse(userIDStr)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid user ID in token",
+				"error": "Invalid token",
 			})
+			c.Abort()
 			return
 		}
 
+		rawRoles, ok := claims["roles"].([]interface{})
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token",
+			})
+			c.Abort()
+			return
+		}
+
+		roles := make([]string, len(rawRoles))
+		for i, r := range rawRoles {
+			roles[i] = r.(string)
+		}
+
 		c.Set("userID", userID)
+		c.Set("roles", roles)
 
 		c.Next()
+	}
+}
+
+func RoleMiddleware(requiredRoles []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rolesValue, exists := c.Get("roles")
+
+		if !exists {
+			c.AbortWithStatus(http.StatusUnauthorized)
+
+			return
+		}
+
+		roles := rolesValue.([]string)
+
+		hasRole := false
+
+		for _, r := range roles {
+			for _, rr := range requiredRoles {
+				if r == rr {
+					hasRole = true
+				}
+			}
+		}
+
+		if !hasRole {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "Forbidden",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+
 	}
 }
