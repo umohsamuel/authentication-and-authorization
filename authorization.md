@@ -1,58 +1,72 @@
-So, lets go,
+# Implement Authorization with Role-Based Access Control (RBAC) in Golang using Gin, JWT, and Postgres
 
-this is part 2 of our authentication & authorization series. in the previous part we implemented an authentication system from scratch in golang with golang gin and postgres sql. now in this part 2 we shall further discuss and see how we can implmen authorization in our system
+This is part 2 of our authentication and authorization series. In the previous part, we implemented an authentication system from scratch in Golang with Gin and PostgreSQL. Now in this part, we will go further and see how we can implement authorization in our system.
 
-as usual the requirements for this is
-have a working laptop or pc with golang install
-have some sort of familairty with golang and sql
-have consumed read the frist part of this series (link here)
+## Prerequisites
 
-now. authorization answers the second half of our dilema when we know who you are, surely, we should know what youre allowed to do in our application?
+The requirements to follow along are:
 
-what is authorization?
-Authorization determines what an authenticated identity (user, application, or service) can do and which resources it can access within a system.
+1. A working laptop or PC with Golang installed.
+2. Some familiarity with Golang and SQL.
+3. Having read the first part of this series ([link here](https://www.umohsg.com/blog/build-a-secure-authentication-system-in-golang-with-gin-jwt-and-postgres-48f2e823-f2c3-46c7-a861-ec44e806c38b)).
 
-In most systems, authorization follows authentication (AuthN). Once the system knows who you are, authorization determines what you’re allowed to do.
+## What is Authorization?
 
-Authorization ensures that every authenticated identity operates within defined boundaries. Without it, a user who logs in successfully (AuthN) could access all sensitive data and perform any action (AuthZ failure).
+Authorization answers the second half of our dilemma. When we know who you are, surely, we should know what you're allowed to do in our system?
 
-What does authorization do in our system?
-authorization connects 3 main components
+Authorization determines what an authenticated identity (user, application, or service) can do and which resources it can access within a system. It ensures that every authenticated identity operates within defined boundaries. Without it, a user who logs in successfully could access all sensitive data and perform any action.
 
-1. users (authenticated entities)
-2. permissions (actions they can perform)
-3. resources (the things were protecting)
+### What Does Authorization Do in Our System?
 
-there are mainly 3 ways to implement authorization in a system, we have
+Authorization connects three main components:
 
-1. Role-Based Access Control (RBAC)
+1. **Users** (authenticated entities)
+2. **Permissions** (actions they can perform)
+3. **Resources** (the things we're protecting)
+
+### Common Authorization Models
+
+There are mainly three ways to implement authorization in a system:
+
+1. **Role-Based Access Control (RBAC)**
    RBAC is the foundational authorization model. It simplifies permission management by assigning permissions to roles (e.g., Admin, Driver, User) and then assigning those roles to users.
 
-How it Works: The system checks the user’s assigned role(s) and aggregates their permissions to determine if the requested action is allowed.
+   **How it works**: The system checks the user's assigned role(s) and aggregates their permissions to determine if the requested action is allowed.
 
-2. Attribute-Based Access Control (ABAC)
+2. **Attribute-Based Access Control (ABAC)**
    ABAC uses dynamic policies that evaluate attributes of the user, the resource, and the environment to make an access decision.
 
-How it Works: Access is determined by policy expressions that evaluate in real time (e.g., user.department == resource.department, or checking if the current time falls within business hours).
+   **How it works**: Access is determined by policy expressions that evaluate in real time (e.g., `user.department == resource.department`, or checking if the current time falls within business hours).
 
-3. Relationship-Based Access Control (ReBAC) and Fine-Grained Authorization (FGA)
+3. **Relationship-Based Access Control (ReBAC) and Fine-Grained Authorization (FGA)**
    ReBAC bases authorization on the relationships and ownership between a user and a specific resource.
 
-How it Works: The system checks for explicit relationships (e.g., “owner of,” “shared with,” “member of group”) to grant or deny access. Current implementations use graph-based relationship modeling to navigate complex permission chains.
+   **How it works**: The system checks for explicit relationships (e.g., "owner of," "shared with," "member of group") to grant or deny access. Current implementations use graph-based relationship modeling to navigate complex permission chains.
 
-in this guide we will be focusing on only 1 way of implementing authoization which is RBAC
+In this guide, we will be focusing on implementing RBAC. It's the most common and straightforward to implement, making it a solid starting point.
 
-alright, now lets implement rbac into our golang authentication system
+## Database Migrations for RBAC
 
-first we would need to add some db migrations. in these migrations we create our roles table, we create our permissions table and we have a many-to-many relationship between role and permissions, we thus create our role_permisions table. then we create our user_roles table which is a many to many relationship on users and roles. (writing it intentionally ts so it can be expanciated more)
+Now, let's implement RBAC into our Golang authentication system.
 
-so lets create a new db migration, lets run
+First, we need to add some database migrations. In these migrations, we will create:
 
-```
+- A **roles** table to define the available roles.
+- A **permissions** table to define the available permissions.
+- A **role_permissions** table to establish the many-to-many relationship between roles and permissions.
+- A **user_roles** table to establish the many-to-many relationship between users and roles.
+
+So let's create a new database migration:
+
+```bash
 goose create create_authorization_tables sql
 ```
 
-```
+Paste this into the generated migration file:
+
+```sql
+-- migrations/..._create_authorization_tables.sql
+
 -- +goose Up
 -- role
 CREATE TABLE roles (
@@ -128,11 +142,21 @@ DROP TABLE IF EXISTS user_roles;
 DROP INDEX IF EXISTS idx_user_roles_user_id_role_id;
 ```
 
-we also added an insert statement to set a default user role to any existing user who doesnt have a role(i mean, they shouldnt before this migration right?) and then we create an index for faster queries.
+We also added an insert statement to set a default "user" role to any existing user who doesn't have a role (I mean, they shouldn't before this migration, right?). We then create an index for faster queries.
 
-then next, lets write all our queries and let sqlc run its magic
+Now apply the migration:
 
+```bash
+goose up
 ```
+
+## RBAC Queries
+
+Next, let's write all our queries and let sqlc run its magic:
+
+```sql
+-- queries/authorization.sql
+
 -- name: GetRoles :many
 SELECT *
 FROM roles;
@@ -180,19 +204,35 @@ DELETE FROM user_roles
 WHERE user_id = $1;
 ```
 
-next we generate with
+Then generate the Go code with:
 
-```
+```bash
 sqlc generate
 ```
 
-great, we have covered most of what we need
+Great, we have covered most of what we need.
 
-next, we need to update our generateaccesstoken function to accept roles, so this can be added to the jwt claims, this way we dont have to always make a call to our db anytime a user hits our RBAC middleware, as that would be very detrimenal. another way we can do this is store the user role and permissions in redis, that way we will get them from redis and proceed that way. and this is the best approach cause this way, we can invalidate permissions and itll update in realtime. whereas for our jwt approach, if we invalidate a entity permission, those permissions still live as long until the jwt access token expires, in our case 10-15 mins. fair tradeoff... but for this guide we will pass the roles to the jwt claims and then access them in our rbac middleware. everything else is the same just the choice of where to store it. for simplicity of this guide, we will stick with this approach.
+## Adding Roles to JWT Claims
 
-lets update our generateaccesstoken function to accept and add roles to the claims
+Next, we need to update our `GenerateAccessToken` function to accept roles so they can be added to the JWT claims. This way, we don't have to make a call to our database every time a user hits our RBAC middleware, as that would be very detrimental to performance.
 
-```
+### A Note on Alternative Approaches
+
+Another way we can do this is to store the user roles and permissions in Redis.
+
+That way, we will get them from Redis and proceed accordingly. This is actually the better approach because we can invalidate permissions and it will update in real time.
+
+Whereas with our JWT approach, if we invalidate an entity's permissions, those permissions still live until the JWT access token expires, in our case 10-15 minutes.
+
+Now you understand the tradeoff, but for simplicity of this guide, we will pass the roles to the JWT claims and then access them in our RBAC middleware. Everything else is the same, just the choice of where to store it.
+
+### Updating GenerateAccessToken
+
+Let's update our `GenerateAccessToken` function to accept and add roles to the claims:
+
+```go
+// pkg/util/auth.go
+
 func GenerateAccessToken(user sqlc.User, roles []string, jwtSecret []byte, accessTokenTTL time.Duration) (string, error) {
 	expirationTime := time.Now().UTC().Add(accessTokenTTL)
 
@@ -215,9 +255,15 @@ func GenerateAccessToken(user sqlc.User, roles []string, jwtSecret []byte, acces
 }
 ```
 
-next we will have to update our signup handler function, so that from now when any entity signs up we assign them a role. so just before we send the user created successfuly response, lets add
+## Updating the Authentication Handlers
 
-```
+### Updating the SignUp Handler
+
+We need to update our signup handler so that when any entity signs up, we assign them a default role. Just before we send the "user created successfully" response, let's add:
+
+```go
+// internal/ports/http/handlers/user/user.go
+
 	err = h.queries.AssignRoleToEntity(c, sqlc.AssignRoleToEntityParams{
 		UserID: user.ID,
 		Name:   "user",
@@ -231,9 +277,13 @@ next we will have to update our signup handler function, so that from now when a
 	}
 ```
 
-next well have to update our signin handler to get the entity roles so we can pass it to the generateaccesstoken function we just modified earlier
+### Updating the SignIn Handler
 
-```
+Next, we'll have to update our signin handler to get the entity roles so we can pass them to the `GenerateAccessToken` function we just modified:
+
+```go
+// internal/ports/http/handlers/user/user.go
+
 	roles, err := h.queries.GetEntityRoles(c, user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, "error")
@@ -249,9 +299,13 @@ next well have to update our signin handler to get the entity roles so we can pa
 	}
 ```
 
-we must also do the same for the refreshaccesstoken handler as it uses the generateaccesstoken function aswell
+### Updating the RefreshAccessToken Handler
 
-```
+We must also do the same for the `RefreshAccessToken` handler, as it uses the `GenerateAccessToken` function as well:
+
+```go
+// internal/ports/http/handlers/user/user.go
+
 	roles, err := h.queries.GetEntityRoles(c, user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, "error")
@@ -267,9 +321,155 @@ we must also do the same for the refreshaccesstoken handler as it uses the gener
 	}
 ```
 
-finally lets update our api route to reflect out authorization updates
+## Updating the Auth Middleware
 
+Now that our JWT tokens contain role claims, we need to update our `AuthMiddleware` to extract and set the roles from the token. We also need a new `RoleMiddleware` that will check if a user has the required roles before granting access to a route.
+
+### Updated AuthMiddleware
+
+```go
+// internal/ports/http/middleware/auth.go
+package middleware
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/umohsamuel/authentication-authorization/pkg/env"
+	"github.com/umohsamuel/authentication-authorization/pkg/util"
+)
+
+func AuthMiddleware(environmentVariables env.EnvironmentVariables) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Authorization header required",
+			})
+			c.Abort()
+			return
+		}
+
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid authorization format",
+			})
+			c.Abort()
+			return
+		}
+
+		tokenString := parts[1]
+
+		claims, err := util.ValidateToken(tokenString, []byte(environmentVariables.Authentication.JWT_SECRET))
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid or expired token",
+			})
+			c.Abort()
+			return
+		}
+
+		userIDStr, ok := claims["sub"].(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token",
+			})
+			c.Abort()
+			return
+		}
+
+		userID, err := uuid.Parse(userIDStr)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token",
+			})
+			c.Abort()
+			return
+		}
+
+		rawRoles, ok := claims["roles"].([]interface{})
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token",
+			})
+			c.Abort()
+			return
+		}
+
+		roles := make([]string, len(rawRoles))
+		for i, r := range rawRoles {
+			roles[i] = r.(string)
+		}
+
+		c.Set("userID", userID)
+		c.Set("roles", roles)
+
+		c.Next()
+	}
+}
 ```
+
+So now, we also extract roles from the JWT claims (since we added them in our updated `GenerateAccessToken`) and we set them as well in the Gin context, easy.
+
+### RoleMiddleware
+
+Since `AuthMiddleware` runs first and sets the user's roles in the Gin context, our `RoleMiddleware` can simply read them and check if the user has the required roles. Now, let's create it:
+
+```go
+// internal/ports/http/middleware/auth.go
+
+func RoleMiddleware(requiredRoles []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rolesValue, exists := c.Get("roles")
+
+		if !exists {
+			c.AbortWithStatus(http.StatusUnauthorized)
+
+			return
+		}
+
+		roles := rolesValue.([]string)
+
+		hasRole := false
+
+		for _, r := range roles {
+			for _, rr := range requiredRoles {
+				if r == rr {
+					hasRole = true
+				}
+			}
+		}
+
+		if !hasRole {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "Forbidden",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+
+	}
+}
+```
+
+This middleware:
+
+1. Retrieves the user's roles from the Gin context (remember we set them in the `AuthMiddleware`).
+2. Loops through the user's roles and checks if any match the required roles for the route.
+3. If the user has at least one of the required roles, the request proceeds. Otherwise, we return a `403 Forbidden` response.
+
+## Updating the API Routes
+
+Finally, let's update our API routes to reflect our authorization updates:
+
+```go
+// cmd/api/api.go
+
 package api
 
 import (
@@ -365,31 +565,23 @@ func (s *Server) Auth(rg *gin.RouterGroup) {
 }
 ```
 
-great, now lets do some testing, you can run the application as usual
+I updated the route structure a little, so it's a bit different from Part 1:
+
+- **Public routes** (`/auth/*`) handle signup, signin, and token management.
+- **Protected routes** (`/api/v1/*`) use the `AuthMiddleware`, so you must be authenticated to access them.
+- **Admin routes** (`/api/v1/admin/*`) add an extra layer with `RoleMiddleware`, so only users with the `super-admin` or `admin` role can access them.
 
 ## Run the Application
 
-We can run the application by running:
+Let's do some testing. You can run the application in your terminal with:
 
 ```bash
 go run cmd/main.go
 ```
 
-You should see among the output, first:
-
-```text
-2026/06/11 16:14:11 database created & is reachable
-```
-
-Then lastly:
-
-```text
-[GIN-debug] Listening and serving HTTP on :8080
-```
-
 ## Testing with cURL
 
-if we go to an admin only minimum route now as a user
+If we go to an admin-only route now as a regular user:
 
 ```bash
 export ACCESS_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -407,18 +599,22 @@ You should get the response 403:
 }
 ```
 
-you can update your user role from your database, you can use the query tool or update your signup AssignRoleToEntity to create an admin editity, then try the route again, and you should get the response
+You can update your user role from your database using a query tool, or update your signup `AssignRoleToEntity` to create an admin entity. Then try the route again, and you should get the response:
 
-```
+```json
 {
   "success": "you have successfully implemented RBAC"
 }
 ```
 
-conclusion
+## Conclusion
 
-congratulations, if you have made it this far... you have successfully implemented authorization RBAC. phenomenal (glad i could talk you through it, no homo).
+Congratulations, if you have made it this far, you have successfully implemented RBAC authorization. This system we built includes:
 
-this system we built includes... list all it includes clanker,
+1. Database schema for roles, permissions, and their relationships.
+2. Many-to-many mappings between roles and permissions, and between users and roles.
+3. Default role assignment on user signup.
+4. Role-based middleware to protect routes based on required roles.
+5. A structured API with separated public routes and protected routes.
 
-as usual you can checkout the code on Github here: [umohsamuel/authentication-and-authorization](https://github.com/umohsamuel/authentication-and-authorization), play around with it and lmk what you think.
+As usual, you can checkout the source code on Github here: [umohsamuel/authentication-and-authorization](https://github.com/umohsamuel/authentication-and-authorization), play around with it and lmk what you think.
